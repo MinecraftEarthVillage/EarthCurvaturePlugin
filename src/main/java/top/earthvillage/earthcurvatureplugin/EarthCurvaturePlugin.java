@@ -6,7 +6,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitRunnable;
 
 
 public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
@@ -42,7 +44,6 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
             // 将事件的位置设置为新的位置
             event.setTo(loc);
         }
-
     }
 
     private void handleXBoundary(Location loc, Player player) {
@@ -94,11 +95,27 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         );
         player.teleport(newLoc);
 
-        // 执行传送并取消移动事件
+        // 执行传送
         player.teleport(newLoc);
         loc.setX(newX); // 同步更新事件坐标
         loc.setZ(newZ);
-        player.sendMessage("原方向:" + originalYaw + " → 新方向:" + newYaw);
+        //player.sendMessage("原方向:" + originalYaw + " → 新方向:" + newYaw);//调试信息
+        // ====== 关键修复：强制视角同步 ======
+        // 方法一：使用TeleportCause解决同步问题
+        player.teleport(newLoc, PlayerTeleportEvent.TeleportCause.PLUGIN);
+
+        // 方法二：延迟1 tick强制更新视角
+        float finalNewYaw = newYaw;
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                Location syncLoc = newLoc.clone();
+                syncLoc.setYaw(finalNewYaw);
+                syncLoc.setPitch(player.getLocation().getPitch());
+                player.teleport(syncLoc);
+            }
+        }.runTaskLater(this, 1);
+
     }
 
     private static class Configuration {
