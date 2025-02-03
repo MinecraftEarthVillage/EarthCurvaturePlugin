@@ -1,7 +1,9 @@
 package top.earthvillage.earthcurvatureplugin;
 
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -9,6 +11,7 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.util.Vector;
 
 
 public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
@@ -21,6 +24,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(this, this);
     }
 
+    // 在玩家移动事件处理方法中添加载具检测
     @EventHandler
     public void 玩家移动事件(PlayerMoveEvent event) {
         Location from = event.getFrom();
@@ -29,39 +33,53 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
 
         Location loc = to.clone();
         Player player = event.getPlayer();
+        boolean hasVehicle = player.isInsideVehicle();
 
         // 处理X轴边界（东西经180度）
         if (Math.abs(loc.getX()) > config.xBoundary) {
-            handleXBoundary(loc, player);
+            handleXBoundary(loc, player, hasVehicle); // 修改方法签名
             event.setTo(loc);
             return;
         }
 
         // 处理Z轴边界（南北极）
         if (Math.abs(loc.getZ()) > config.zBoundary) {
-            // 调用处理Z轴边界的函数
-            handleZBoundary(loc, player);
-            // 将事件的位置设置为新的位置
+            handleZBoundary(loc, player, hasVehicle); // 修改方法签名
             event.setTo(loc);
         }
     }
 
-    private void handleXBoundary(Location loc, Player player) {
-        // 计算新坐标（边界内1格）
+    // X轴越界
+    private void handleXBoundary(Location loc, Player player, boolean hasVehicle) {
+        // 原始坐标计算保持不变
         double sign = Math.signum(loc.getX());
         double newX = (-sign * config.xBoundary) + (sign * 1);
         loc.setX(newX);
+        Entity vehicle = player.getVehicle();
 
-        // 创建新位置并保持朝向
         Location newLoc = loc.clone();
         newLoc.setYaw(player.getLocation().getYaw());
         newLoc.setPitch(player.getLocation().getPitch());
 
-        // 使用teleport应用旋转
+        // 传送载具逻辑
+        if (vehicle != null) {
+            if (hasVehicle) {
+                Location vehicleLoc = vehicle.getLocation();
+                // 计算相对偏移
+                double offsetX = vehicleLoc.getX() - player.getLocation().getX();
+                // 应用新坐标
+                vehicle.teleport(newLoc.clone().add(offsetX, 0, 0));  // 同时传送矿车
+            }
+            // 停止交通工具的速度
+            vehicle.setVelocity(new Vector(0, 0, 0));
+            // 将交通工具传送到新的位置
+            vehicle.teleport(newLoc, PlayerTeleportEvent.TeleportCause.PLUGIN);
+        }
         player.teleport(newLoc);
     }
 
-    private void handleZBoundary(Location loc, Player player) {
+
+    private void handleZBoundary(Location loc, Player player, boolean hasVehicle) {
         // 地图参数
         final double halfWidth = config.xBoundary; // 配置文件里的X边界数值就是地图宽度的一半
 
@@ -70,10 +88,13 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         double originalZ = loc.getZ();
         double signZ = Math.signum(originalZ);
 
+        //获得玩家坐着的载具
+        Entity vehicle = player.getVehicle();
+
         // 计算对侧经线坐标
         double newX = originalX - halfWidth;
         if (newX < -halfWidth) {
-            newX += halfWidth*2; // 处理西边界溢出
+            newX += halfWidth * 2; // 处理西边界溢出
         }
 
         // 计算新Z坐标（边界内1格）
@@ -93,13 +114,30 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
                 newYaw,
                 player.getLocation().getPitch()
         );
-        player.teleport(newLoc);
+        if (vehicle != null) {
+            // 传送载具逻辑
+            if (hasVehicle) {
+                Location vehicleLoc = vehicle.getLocation();
+                // 计算相对偏移
+                double offsetX = vehicleLoc.getX() - player.getLocation().getX();
+                // 应用新坐标
+                vehicle.teleport(newLoc.clone().add(offsetX, 0, 0));  // 同时传送矿车
+            }
 
-        // 执行传送
+            player.teleport(newLoc);
+            // 停止交通工具的速度
+            vehicle.setVelocity(new Vector(0, 0, 0));
+            // 将交通工具传送到新的位置
+            vehicle.teleport(newLoc, PlayerTeleportEvent.TeleportCause.PLUGIN);
+        }
+
+        // 最终执行传送
         player.teleport(newLoc);
         loc.setX(newX); // 同步更新事件坐标
         loc.setZ(newZ);
-        //player.sendMessage("原方向:" + originalYaw + " → 新方向:" + newYaw);//调试信息
+        player.sendMessage("你成功环绕了地球一圈！");//调试信息
+        player.sendMessage("原方向:" + originalYaw + " → 新方向:" + newYaw);//调试信息
+
         // ====== 关键修复：强制视角同步 ======
         // 方法一：使用TeleportCause解决同步问题
         player.teleport(newLoc, PlayerTeleportEvent.TeleportCause.PLUGIN);
@@ -115,7 +153,6 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
                 player.teleport(syncLoc);
             }
         }.runTaskLater(this, 1);
-
     }
 
     private static class Configuration {
