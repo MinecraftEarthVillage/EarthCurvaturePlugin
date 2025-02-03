@@ -1,7 +1,6 @@
 package top.earthvillage.earthcurvatureplugin;
 
 import org.bukkit.Location;
-import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
@@ -37,49 +36,67 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
 
         // 处理X轴边界（东西经180度）
         if (Math.abs(loc.getX()) > config.xBoundary) {
-            handleXBoundary(loc, player, hasVehicle); // 修改方法签名
+            handleXBoundary(loc, player); // 修改方法签名
             event.setTo(loc);
             return;
         }
 
         // 处理Z轴边界（南北极）
         if (Math.abs(loc.getZ()) > config.zBoundary) {
-            handleZBoundary(loc, player, hasVehicle); // 修改方法签名
+            handleZBoundary(loc, player); // 修改方法签名
             event.setTo(loc);
         }
     }
 
+    // 新增方法：统一处理载具与玩家的同步传送
+    private void handleVehicleAndPlayer(Player player, Location newLoc) {
+        Entity vehicle = player.getVehicle();
+        if (vehicle == null) return;
+
+        // 让玩家暂时离开载具
+        player.leaveVehicle();
+
+        // 计算载具与玩家的相对偏移
+        Location vehicleLoc = vehicle.getLocation();
+        double offsetX = vehicleLoc.getX() - player.getLocation().getX();
+        double offsetZ = vehicleLoc.getZ() - player.getLocation().getZ();
+
+        // 计算载具新坐标
+        Location vehicleNewLoc = newLoc.clone().add(offsetX, 0, offsetZ);
+        vehicleNewLoc.setYaw(vehicleLoc.getYaw());
+        vehicleNewLoc.setPitch(vehicleLoc.getPitch());
+
+        // 停止载具速度并传送
+        vehicle.setVelocity(new Vector(0, 0, 0));
+        vehicle.teleport(vehicleNewLoc, PlayerTeleportEvent.TeleportCause.PLUGIN);
+
+        // 延迟重新绑定玩家到载具（修复矿车无法同步的问题）
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (vehicle.isValid() && player.isOnline()) {
+                    vehicle.addPassenger(player);
+                }
+            }
+        }.runTaskLater(this, 2); // 延迟2 ticks确保客户端同步
+    }
     // X轴越界
-    private void handleXBoundary(Location loc, Player player, boolean hasVehicle) {
-        // 原始坐标计算保持不变
+    private void handleXBoundary(Location loc, Player player) {
         double sign = Math.signum(loc.getX());
         double newX = (-sign * config.xBoundary) + (sign * 1);
         loc.setX(newX);
-        Entity vehicle = player.getVehicle();
 
         Location newLoc = loc.clone();
         newLoc.setYaw(player.getLocation().getYaw());
         newLoc.setPitch(player.getLocation().getPitch());
 
-        // 传送载具逻辑
-        if (vehicle != null) {
-            if (hasVehicle) {
-                Location vehicleLoc = vehicle.getLocation();
-                // 计算相对偏移
-                double offsetX = vehicleLoc.getX() - player.getLocation().getX();
-                // 应用新坐标
-                vehicle.teleport(newLoc.clone().add(offsetX, 0, 0));  // 同时传送矿车
-            }
-            // 停止交通工具的速度
-            vehicle.setVelocity(new Vector(0, 0, 0));
-            // 将交通工具传送到新的位置
-            vehicle.teleport(newLoc, PlayerTeleportEvent.TeleportCause.PLUGIN);
-        }
+        // 处理载具和玩家
+        handleVehicleAndPlayer(player, newLoc);
         player.teleport(newLoc);
     }
 
 
-    private void handleZBoundary(Location loc, Player player, boolean hasVehicle) {
+    private void handleZBoundary(Location loc, Player player) {
         // 地图参数
         final double halfWidth = config.xBoundary; // 配置文件里的X边界数值就是地图宽度的一半
 
@@ -88,8 +105,6 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         double originalZ = loc.getZ();
         double signZ = Math.signum(originalZ);
 
-        //获得玩家坐着的载具
-        Entity vehicle = player.getVehicle();
 
         // 计算对侧经线坐标
         double newX = originalX - halfWidth;
@@ -114,22 +129,9 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
                 newYaw,
                 player.getLocation().getPitch()
         );
-        if (vehicle != null) {
-            // 传送载具逻辑
-            if (hasVehicle) {
-                Location vehicleLoc = vehicle.getLocation();
-                // 计算相对偏移
-                double offsetX = vehicleLoc.getX() - player.getLocation().getX();
-                // 应用新坐标
-                vehicle.teleport(newLoc.clone().add(offsetX, 0, 0));  // 同时传送矿车
-            }
+        // 处理载具和玩家
+        handleVehicleAndPlayer(player, newLoc);
 
-            player.teleport(newLoc);
-            // 停止交通工具的速度
-            vehicle.setVelocity(new Vector(0, 0, 0));
-            // 将交通工具传送到新的位置
-            vehicle.teleport(newLoc, PlayerTeleportEvent.TeleportCause.PLUGIN);
-        }
 
         // 最终执行传送
         player.teleport(newLoc);
