@@ -49,7 +49,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
     }
 
     // 新增方法：统一处理载具与玩家的同步传送
-    private void handleVehicleAndPlayer(Player player, Location newLoc) {
+    private void handleVehicleAndPlayer(Player player, Location newLoc, float yawOffset) {
         Entity vehicle = player.getVehicle();
         if (vehicle == null) return;
 
@@ -61,16 +61,18 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         double offsetX = vehicleLoc.getX() - player.getLocation().getX();
         double offsetZ = vehicleLoc.getZ() - player.getLocation().getZ();
 
-        // 计算载具新坐标
+        // 计算载具新坐标和方向（应用Yaw偏移）
         Location vehicleNewLoc = newLoc.clone().add(offsetX, 0, offsetZ);
-        vehicleNewLoc.setYaw(vehicleLoc.getYaw());
+        float vehicleNewYaw = (vehicleLoc.getYaw() + yawOffset) % 360.0f;
+        if (vehicleNewYaw < 0) vehicleNewYaw += 360.0f;
+        vehicleNewLoc.setYaw(vehicleNewYaw); // 同步载具Yaw
         vehicleNewLoc.setPitch(vehicleLoc.getPitch());
 
         // 停止载具速度并传送
         vehicle.setVelocity(new Vector(0, 0, 0));
         vehicle.teleport(vehicleNewLoc, PlayerTeleportEvent.TeleportCause.PLUGIN);
 
-        // 延迟重新绑定玩家到载具（修复矿车无法同步的问题）
+        // 延迟重新绑定玩家到载具
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -78,7 +80,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
                     vehicle.addPassenger(player);
                 }
             }
-        }.runTaskLater(this, 2); // 延迟2 ticks确保客户端同步
+        }.runTaskLater(this, 2);
     }
     // X轴越界
     private void handleXBoundary(Location loc, Player player) {
@@ -90,12 +92,16 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         newLoc.setYaw(player.getLocation().getYaw());
         newLoc.setPitch(player.getLocation().getPitch());
 
-        // 处理载具和玩家
-        handleVehicleAndPlayer(player, newLoc);
+        // 处理载具和玩家（这里不需要反转了）
+        handleVehicleAndPlayer(player, newLoc,0.0f);
         player.teleport(newLoc);
     }
 
-
+/*
+Z方向就相当于现实中南北方向（沿着经线）
+这个Z轴越界逻辑想破脑袋几个月了才摸索出来
+在平面地图还原跨越极点是很难想象的
+ */
     private void handleZBoundary(Location loc, Player player) {
         // 地图参数
         final double halfWidth = config.xBoundary; // 配置文件里的X边界数值就是地图宽度的一半
@@ -115,12 +121,11 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         // 计算新Z坐标（边界内1格）
         double newZ = (signZ > 0) ? (config.zBoundary - 1) : (-config.zBoundary + 1);
 
-        // 计算反转后的Yaw角度（精确转向）
+        // 计算玩家和载具的Yaw反转角度（180度）
         float originalYaw = player.getLocation().getYaw();
         float newYaw = (originalYaw + 180.0f) % 360.0f;
         if (newYaw < 0) newYaw += 360.0f;
 
-        // 创建新位置并传送
         Location newLoc = new Location(
                 loc.getWorld(),
                 newX,
@@ -129,9 +134,9 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
                 newYaw,
                 player.getLocation().getPitch()
         );
-        // 处理载具和玩家
-        handleVehicleAndPlayer(player, newLoc);
 
+        // 处理载具和玩家，传入Yaw偏移量（180度）
+        handleVehicleAndPlayer(player, newLoc, 180.0f);
 
         // 最终执行传送
         player.teleport(newLoc);
