@@ -91,7 +91,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
                     // 确保两者坐标在阈值范围内
                     if (vehicle.getLocation().distance(player.getLocation()) < 2.0) {
                         vehicle.addPassenger(player);
-                        getLogger().info("坐标验证通过，重绑成功");
+                        //getLogger().info("坐标验证通过，重绑成功");
                     } else {
                         getLogger().warning("坐标偏差过大：玩家=" + player.getLocation() + " 载具=" + vehicle.getLocation());
                     }
@@ -117,8 +117,11 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
             // 处理载具和玩家（这里不需要反转了）
             handleVehicleAndPlayer(player, newLoc,0.0f);
         }else {
+
             newLoc.setY(newLoc.getY() + config.高度偏移); // 添加高度修正
             player.teleport(newLoc);
+
+
             player.sendMessage("你刚刚环绕了地球一圈！");//调试信息
         }
     }
@@ -204,23 +207,37 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
 
     //之前写的防卡地里或高空坠落，但是那样不真实（你总不可能碰到崖壁自动瞬移到顶上、遇到悬崖直接瞬移到地面上吧）
     private Location 获取安全高度(Location loc) {
+        // 获取玩家所在的世界
         World world = loc.getWorld();
+        // 获取玩家所在位置的X坐标
         int x = loc.getBlockX();
+        // 获取玩家所在位置的Z坐标
         int z = loc.getBlockZ();
 
-        // 精确搜索安全高度（包括水下）
-        // 遍历世界中的所有高度
-        for (int y = world.getMaxHeight(); y > world.getMinHeight(); y--) {
-            // 创建一个测试位置
-            Location testLoc = new Location(world, x, y, z);
-            // 如果当前位置不是固体，并且当前位置上方是可通行的
-            if (!testLoc.getBlock().getType().isSolid() &&
-                    testLoc.clone().add(0, 1, 0).getBlock().isPassable()) {
-                // 返回居中坐标
-                return testLoc.add(0.5, 0, 0.5); // 居中坐标
+        // 优先从下往上找可站立点（防虚空）
+        for (int y = world.getMinHeight() + 1; y <= world.getMaxHeight(); y++) {
+            Location feetPos = new Location(world, x, y, z);
+            Location groundPos = feetPos.clone().subtract(0, 1, 0);
+
+            // 检查脚下方块是否可站立
+            if (groundPos.getBlock().getType().isSolid()) {
+                // 检查脚部和头部空间是否可通行（2格高，防卡墙）
+                if (feetPos.getBlock().isPassable() &&
+                        feetPos.clone().add(0, 1, 0).getBlock().isPassable()) {
+                    return new Location(world, x + 0.5, y, z + 0.5);
+                }
             }
         }
-        return loc; // 保底返回原坐标
+
+        // 保底：从上往下找第一个可站立点（防高空坠落）
+        for (int y = world.getMaxHeight(); y > world.getMinHeight(); y--) {
+            Location groundPos = new Location(world, x, y - 1, z);
+            if (groundPos.getBlock().getType().isSolid()) {
+                return new Location(world, x + 0.5, y, z + 0.5);
+            }
+        }
+
+        return loc.clone().add(0.5, 0, 0.5); // 居中处理
     }
 
 
@@ -260,7 +277,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         }
 
         if (modified) {
-            entity.teleport(loc);
+            entity.teleport(loc);//直接传送，不修正高度
             // 特殊处理矿车类实体
             if (entity instanceof Minecart) {
                 entity.setVelocity(new Vector(0, 0, 0));
