@@ -209,10 +209,14 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         int z = loc.getBlockZ();
 
         // 精确搜索安全高度（包括水下）
+        // 遍历世界中的所有高度
         for (int y = world.getMaxHeight(); y > world.getMinHeight(); y--) {
+            // 创建一个测试位置
             Location testLoc = new Location(world, x, y, z);
+            // 如果当前位置不是固体，并且当前位置上方是可通行的
             if (!testLoc.getBlock().getType().isSolid() &&
                     testLoc.clone().add(0, 1, 0).getBlock().isPassable()) {
+                // 返回居中坐标
                 return testLoc.add(0.5, 0, 0.5); // 居中坐标
             }
         }
@@ -220,71 +224,6 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
     }
 
 
-
-
-
-
-
-    // 新增实体移动事件监听
-    private void handleEntityMovement(Entity entity, Location to) {
-        Location loc = to.clone();
-
-        // 处理X轴边界
-        if (Math.abs(loc.getX()) > config.xBoundary) {
-            handleXBoundary2(loc);
-            entity.teleport(loc);
-            return;
-        }
-
-        // 处理Z轴边界
-        if (Math.abs(loc.getZ()) > config.zBoundary) {
-            handleZBoundary2(entity, loc);
-            entity.teleport(loc);
-        }
-    }
-
-    // 非玩家实体X轴处理
-    private void handleXBoundary2(Location loc) {
-        double sign = Math.signum(loc.getX());
-        double newX = (-sign * config.xBoundary) + (sign * 1);
-        loc.setX(newX);
-    }
-
-    // 非玩家实体Z轴处理
-    private void handleZBoundary2(Entity entity, Location loc) {
-        final double halfWidth = config.xBoundary;
-        double originalX = loc.getX();
-        double originalZ = loc.getZ();
-        double signZ = Math.signum(originalZ);
-
-        // 计算对侧经线坐标
-        double newX = (originalX - halfWidth + 2 * halfWidth) % (2 * halfWidth) - halfWidth;
-        double newZ = (signZ > 0) ? (config.zBoundary - 1) : (-config.zBoundary + 1);
-
-        // 应用新坐标
-        loc.setX(newX);
-        loc.setZ(newZ);
-
-        // 生物实体反转移动方向（模拟环绕效果）
-        if (entity instanceof LivingEntity) {
-            LivingEntity livingEntity = (LivingEntity) entity;
-            Location targetLoc = livingEntity.getEyeLocation();
-            targetLoc.setYaw((targetLoc.getYaw() + 180) % 360);
-            livingEntity.teleport(targetLoc);
-        }
-
-        // 载具类实体需要重置速度
-        if (entity instanceof Vehicle) {
-            entity.setVelocity(new Vector(0, 0, 0));
-            // 矿车需要二次校准
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    entity.teleport(loc.clone().add(0, 0.1, 0)); // 防止卡轨
-                }
-            }.runTaskLater(this, 1);
-        }
-    }
 
 
 
@@ -314,7 +253,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
             modified = true;
         }
 
-        // 处理Z轴
+        // 新增Z轴处理
         if (Math.abs(loc.getZ()) > config.zBoundary) {
             handleZBoundaryForEntity(loc);
             modified = true;
@@ -328,10 +267,19 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
                 new BukkitRunnable() {
                     @Override
                     public void run() {
+                        // 二次坐标修正防止卡区块
                         entity.teleport(loc.clone().add(0, 0.1, 0));
                     }
                 }.runTaskLater(this, 1);
             }
+
+            // 同步更新实体的旋转角度
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    entity.teleport(loc); // 强制角度同步
+                }
+            }.runTaskLater(this, 2);
         }
     }
 
@@ -342,22 +290,34 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         loc.setX(newX);
     }
 
-    // 非玩家实体Z轴处理
+    // 实体Z轴越界处理
     private void handleZBoundaryForEntity(Location loc) {
         final double halfWidth = config.xBoundary;
         double originalX = loc.getX();
-        double newX = (originalX - halfWidth + 2 * halfWidth) % (2 * halfWidth) - halfWidth;
-        double newZ = (Math.signum(loc.getZ()) > 0) ?
-                (config.zBoundary - 1) : (-config.zBoundary + 1);
+        double originalZ = loc.getZ();
+        double signZ = Math.signum(originalZ);
 
+        // 计算对侧坐标
+        double newX = originalX - halfWidth;
+        if (newX < -halfWidth) {
+            newX += halfWidth * 2;
+        }
+
+        // 计算新Z坐标
+        double newZ = (signZ > 0) ? (config.zBoundary - 1) : (-config.zBoundary + 1);
+
+        // 调整Yaw方向（180度反转）
+        float newYaw = (loc.getYaw() + 180.0f) % 360.0f;
+        if (newYaw < 0) newYaw += 360.0f;
+
+        // 应用新坐标和角度
         loc.setX(newX);
         loc.setZ(newZ);
+        loc.setYaw(newYaw);
 
-        // 生物实体转向
-        if (loc.getWorld().getNearbyEntities(loc, 1, 1, 1).stream()
-                .anyMatch(e -> e instanceof LivingEntity)) {
-            loc.setYaw((loc.getYaw() + 180) % 360);
-        }
+        // 应用高度偏移
+        loc.setY(loc.getY() + config.高度偏移);
     }
+
 
 }
