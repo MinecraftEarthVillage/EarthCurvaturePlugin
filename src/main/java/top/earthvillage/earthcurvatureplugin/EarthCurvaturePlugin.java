@@ -61,7 +61,8 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
     private void handleVehicleAndPlayer(Player player, Location newLoc, float yawOffset) {
         Entity vehicle = player.getVehicle();
         if (vehicle == null) return;
-
+        // 应用高度修正
+        newLoc.setY(newLoc.getY() + config.高度偏移);
         // 让玩家暂时离开载具
         player.leaveVehicle();
 
@@ -71,7 +72,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         double offsetZ = vehicleLoc.getZ() - player.getLocation().getZ();
 
         // 计算载具新坐标和方向（应用Yaw偏移）
-        Location vehicleNewLoc = newLoc.clone().add(offsetX, 0, offsetZ);
+        Location vehicleNewLoc = newLoc.clone().add(offsetX, config.高度偏移, offsetZ);
         float vehicleNewYaw = (vehicleLoc.getYaw() + yawOffset) % 360.0f;
         if (vehicleNewYaw < 0) vehicleNewYaw += 360.0f;
         vehicleNewLoc.setYaw(vehicleNewYaw); // 同步载具Yaw
@@ -116,7 +117,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
             // 处理载具和玩家（这里不需要反转了）
             handleVehicleAndPlayer(player, newLoc,0.0f);
         }else {
-
+            newLoc.setY(newLoc.getY() + config.高度偏移); // 添加高度修正
             player.teleport(newLoc);
             player.sendMessage("你刚刚环绕了地球一圈！");//调试信息
         }
@@ -161,15 +162,17 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         );
 
         // 处理载具和玩家，传入Yaw偏移量（180度）
-        handleVehicleAndPlayer(player, newLoc, 180.0f);
-
-        // 最终执行传送
-        player.teleport(newLoc);
-        loc.setX(newX); // 同步更新事件坐标
-        loc.setZ(newZ);
-        player.sendMessage("你刚刚跨越了地理极点！");//调试信息
-        player.sendMessage("原方向:" + originalYaw + " → 新方向:" + newYaw);//调试信息
-
+        if (player.isInsideVehicle()) {
+            handleVehicleAndPlayer(player, newLoc, 180.0f);
+        }else {
+            // 最终执行传送
+            //player.teleport(newLoc);
+            player.teleport(newLoc.add(0, config.高度偏移, 0), PlayerTeleportEvent.TeleportCause.PLUGIN); // 修正高度
+            loc.setX(newX); // 同步更新事件坐标
+            loc.setZ(newZ);
+            player.sendMessage("你刚刚跨越了地理极点！");//调试信息
+            player.sendMessage("原方向:" + originalYaw + " → 新方向:" + newYaw);//调试信息
+        }
         // ====== 关键修复：强制视角同步 ======
         // 方法一：使用TeleportCause解决同步问题
         player.teleport(newLoc, PlayerTeleportEvent.TeleportCause.PLUGIN);
@@ -190,10 +193,12 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
     private static class Configuration {
         public final double xBoundary;
         public final double zBoundary;
+        public final double 高度偏移; // 新增高度修正配置
 
         public Configuration(FileConfiguration cfg) {
             xBoundary = cfg.getDouble("boundary.x", 30000);
             zBoundary = cfg.getDouble("boundary.z", 30000);
+            高度偏移 = cfg.getDouble("高度偏移", 0.1); // 新增配置项
         }
     }
 
@@ -270,7 +275,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
 
         // 载具类实体需要重置速度
         if (entity instanceof Vehicle) {
-            //entity.setVelocity(new Vector(0, 0, 0));
+            entity.setVelocity(new Vector(0, 0, 0));
             // 矿车需要二次校准
             new BukkitRunnable() {
                 @Override
@@ -319,7 +324,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
             entity.teleport(loc);
             // 特殊处理矿车类实体
             if (entity instanceof Minecart) {
-                //entity.setVelocity(new Vector(0, 0, 0));
+                entity.setVelocity(new Vector(0, 0, 0));
                 new BukkitRunnable() {
                     @Override
                     public void run() {
