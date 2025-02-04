@@ -5,7 +5,6 @@ import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
@@ -45,14 +44,15 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
 
         // 处理X轴边界（东西经180度）
         if (Math.abs(loc.getX()) > config.xBoundary) {
-            handleXBoundary(loc, player); // 修改方法签名
+
+            handleXBoundary(loc, player);
             event.setTo(loc);
             return;
         }
 
         // 处理Z轴边界（南北极）
         if (Math.abs(loc.getZ()) > config.zBoundary) {
-            handleZBoundary(loc, player); // 修改方法签名
+            handleZBoundary(loc, player);
             event.setTo(loc);
         }
     }
@@ -82,11 +82,18 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         vehicle.teleport(vehicleNewLoc, PlayerTeleportEvent.TeleportCause.PLUGIN);
 
         // 延迟重新绑定玩家到载具
+// 在延迟任务中添加坐标验证
         new BukkitRunnable() {
             @Override
             public void run() {
-                if (vehicle.isValid() && player.isOnline()) {
-                    vehicle.addPassenger(player);
+                if (player.isOnline()) {
+                    // 确保两者坐标在阈值范围内
+                    if (vehicle.getLocation().distance(player.getLocation()) < 2.0) {
+                        vehicle.addPassenger(player);
+                        getLogger().info("坐标验证通过，重绑成功");
+                    } else {
+                        getLogger().warning("坐标偏差过大：玩家=" + player.getLocation() + " 载具=" + vehicle.getLocation());
+                    }
                 }
             }
         }.runTaskLater(this, 2);
@@ -101,16 +108,25 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         newLoc.setYaw(player.getLocation().getYaw());
         newLoc.setPitch(player.getLocation().getPitch());
 
-        // 处理载具和玩家（这里不需要反转了）
-        handleVehicleAndPlayer(player, newLoc,0.0f);
-        player.teleport(newLoc);
+
+
+//尝试修复矿车问题
+        if (player.isInsideVehicle()) {
+            // 如果玩家在交通工具内
+            // 处理载具和玩家（这里不需要反转了）
+            handleVehicleAndPlayer(player, newLoc,0.0f);
+        }else {
+
+            player.teleport(newLoc);
+            player.sendMessage("你刚刚环绕了地球一圈！");//调试信息
+        }
     }
 
-/*
-Z方向就相当于现实中南北方向（沿着经线）
-这个Z轴越界逻辑想破脑袋几个月了才摸索出来
-在平面地图还原跨越极点是很难想象的
- */
+    /*
+    Z方向就相当于现实中南北方向（沿着经线）
+    这个Z轴越界逻辑想破脑袋几个月了才摸索出来
+    在平面地图还原跨越极点是很难想象的
+     */
     private void handleZBoundary(Location loc, Player player) {
         // 地图参数
         final double halfWidth = config.xBoundary; // 配置文件里的X边界数值就是地图宽度的一半
@@ -151,7 +167,7 @@ Z方向就相当于现实中南北方向（沿着经线）
         player.teleport(newLoc);
         loc.setX(newX); // 同步更新事件坐标
         loc.setZ(newZ);
-        player.sendMessage("你成功环绕了地球一圈！");//调试信息
+        player.sendMessage("你刚刚跨越了地理极点！");//调试信息
         player.sendMessage("原方向:" + originalYaw + " → 新方向:" + newYaw);//调试信息
 
         // ====== 关键修复：强制视角同步 ======
@@ -204,17 +220,13 @@ Z方向就相当于现实中南北方向（沿着经线）
 
 
 
-
-
     // 新增实体移动事件监听
-
-
     private void handleEntityMovement(Entity entity, Location to) {
         Location loc = to.clone();
 
         // 处理X轴边界
         if (Math.abs(loc.getX()) > config.xBoundary) {
-            handleXBoundary2(entity, loc);
+            handleXBoundary2(loc);
             entity.teleport(loc);
             return;
         }
@@ -227,15 +239,10 @@ Z方向就相当于现实中南北方向（沿着经线）
     }
 
     // 非玩家实体X轴处理
-    private void handleXBoundary2(Entity entity, Location loc) {
+    private void handleXBoundary2(Location loc) {
         double sign = Math.signum(loc.getX());
         double newX = (-sign * config.xBoundary) + (sign * 1);
         loc.setX(newX);
-
-        // 矿车等载具需要重置速度
-        if (entity instanceof Vehicle) {
-            entity.setVelocity(new Vector(0, 0, 0));
-        }
     }
 
     // 非玩家实体Z轴处理
@@ -263,7 +270,7 @@ Z方向就相当于现实中南北方向（沿着经线）
 
         // 载具类实体需要重置速度
         if (entity instanceof Vehicle) {
-            entity.setVelocity(new Vector(0, 0, 0));
+            //entity.setVelocity(new Vector(0, 0, 0));
             // 矿车需要二次校准
             new BukkitRunnable() {
                 @Override
@@ -283,8 +290,8 @@ Z方向就相当于现实中南北方向（沿着经线）
             Collection<Entity> entities = world.getEntities();
             for (Entity entity : entities) {
                 // 过滤掉玩家和不需要处理的实体
-                if (entity instanceof Player) continue;
-                if (!(entity instanceof LivingEntity) && !(entity instanceof Vehicle)) continue;
+                //  if (entity instanceof Player) continue;
+                // if (!(entity instanceof LivingEntity) && !(entity instanceof Vehicle)) continue;
 
                 checkEntityBoundary(entity);
             }
@@ -312,7 +319,7 @@ Z方向就相当于现实中南北方向（沿着经线）
             entity.teleport(loc);
             // 特殊处理矿车类实体
             if (entity instanceof Minecart) {
-                entity.setVelocity(new Vector(0, 0, 0));
+                //entity.setVelocity(new Vector(0, 0, 0));
                 new BukkitRunnable() {
                     @Override
                     public void run() {
@@ -347,4 +354,5 @@ Z方向就相当于现实中南北方向（沿着经线）
             loc.setYaw((loc.getYaw() + 180) % 360);
         }
     }
+
 }
