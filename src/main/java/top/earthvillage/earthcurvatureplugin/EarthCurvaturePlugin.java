@@ -43,7 +43,6 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         // 克隆to对象，并将克隆后的对象赋值给loc
         Location loc = to.clone();
         Player player = event.getPlayer();
-        System.out.println("loc="+loc);
         // 处理X轴边界（东西经180度）
         if (Math.abs(loc.getX()) > config.xBoundary) {
 
