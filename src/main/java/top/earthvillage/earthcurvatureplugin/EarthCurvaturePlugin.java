@@ -1,5 +1,6 @@
 package top.earthvillage.earthcurvatureplugin;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -39,9 +40,10 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         Location to = event.getTo();
         if (from.getX() == to.getX() && from.getZ() == to.getZ()) return;
 
+        // 克隆to对象，并将克隆后的对象赋值给loc
         Location loc = to.clone();
         Player player = event.getPlayer();
-
+        System.out.println("loc="+loc);
         // 处理X轴边界（东西经180度）
         if (Math.abs(loc.getX()) > config.xBoundary) {
 
@@ -116,13 +118,14 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
             // 如果玩家在交通工具内
             // 处理载具和玩家（这里不需要反转了）
             handleVehicleAndPlayer(player, newLoc,0.0f);
+            player.sendMessage("你刚刚乘坐着载具环绕了地球一圈！");//调试信息
         }else {
 
             newLoc.setY(newLoc.getY() + config.高度偏移); // 添加高度修正
             player.teleport(newLoc);
 
-
             player.sendMessage("你刚刚环绕了地球一圈！");//调试信息
+
         }
     }
 
@@ -169,7 +172,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
             handleVehicleAndPlayer(player, newLoc, 180.0f);
         }else {
             // 最终执行传送
-            //player.teleport(newLoc);
+
             player.teleport(newLoc.add(0, config.高度偏移, 0), PlayerTeleportEvent.TeleportCause.PLUGIN); // 修正高度
             loc.setX(newX); // 同步更新事件坐标
             loc.setZ(newZ);
@@ -204,45 +207,6 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
             高度偏移 = cfg.getDouble("高度偏移", 0.1); // 新增配置项
         }
     }
-
-    //之前写的防卡地里或高空坠落，但是那样不真实（你总不可能碰到崖壁自动瞬移到顶上、遇到悬崖直接瞬移到地面上吧）
-    private Location 获取安全高度(Location loc) {
-        // 获取玩家所在的世界
-        World world = loc.getWorld();
-        // 获取玩家所在位置的X坐标
-        int x = loc.getBlockX();
-        // 获取玩家所在位置的Z坐标
-        int z = loc.getBlockZ();
-
-        // 优先从下往上找可站立点（防虚空）
-        for (int y = world.getMinHeight() + 1; y <= world.getMaxHeight(); y++) {
-            Location feetPos = new Location(world, x, y, z);
-            Location groundPos = feetPos.clone().subtract(0, 1, 0);
-
-            // 检查脚下方块是否可站立
-            if (groundPos.getBlock().getType().isSolid()) {
-                // 检查脚部和头部空间是否可通行（2格高，防卡墙）
-                if (feetPos.getBlock().isPassable() &&
-                        feetPos.clone().add(0, 1, 0).getBlock().isPassable()) {
-                    return new Location(world, x + 0.5, y, z + 0.5);
-                }
-            }
-        }
-
-        // 保底：从上往下找第一个可站立点（防高空坠落）
-        for (int y = world.getMaxHeight(); y > world.getMinHeight(); y--) {
-            Location groundPos = new Location(world, x, y - 1, z);
-            if (groundPos.getBlock().getType().isSolid()) {
-                return new Location(world, x + 0.5, y, z + 0.5);
-            }
-        }
-
-        return loc.clone().add(0.5, 0, 0.5); // 居中处理
-    }
-
-
-
-
 
 
     // 扫描并处理所有需要检测的实体
