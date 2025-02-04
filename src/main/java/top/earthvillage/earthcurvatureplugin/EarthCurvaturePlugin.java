@@ -1,16 +1,19 @@
 package top.earthvillage.earthcurvatureplugin;
 
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
+
+import java.util.Collection;
 
 
 public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
@@ -21,6 +24,13 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         saveDefaultConfig();
         config = new Configuration(getConfig());
         getServer().getPluginManager().registerEvents(this, this);
+        // 新增实体检测定时任务（每20 ticks执行一次）
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                checkAllEntities();
+            }
+        }.runTaskTimer(this, 0L, 20L);
     }
 
     // 在玩家移动事件处理方法中添加载具检测
@@ -32,7 +42,6 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
 
         Location loc = to.clone();
         Player player = event.getPlayer();
-        boolean hasVehicle = player.isInsideVehicle();
 
         // 处理X轴边界（东西经180度）
         if (Math.abs(loc.getX()) > config.xBoundary) {
@@ -169,6 +178,173 @@ Z方向就相当于现实中南北方向（沿着经线）
         public Configuration(FileConfiguration cfg) {
             xBoundary = cfg.getDouble("boundary.x", 30000);
             zBoundary = cfg.getDouble("boundary.z", 30000);
+        }
+    }
+
+    //之前写的防卡地里或高空坠落，但是那样不真实（你总不可能碰到崖壁自动瞬移到顶上、遇到悬崖直接瞬移到地面上吧）
+    private Location 获取安全高度(Location loc) {
+        World world = loc.getWorld();
+        int x = loc.getBlockX();
+        int z = loc.getBlockZ();
+
+        // 精确搜索安全高度（包括水下）
+        for (int y = world.getMaxHeight(); y > world.getMinHeight(); y--) {
+            Location testLoc = new Location(world, x, y, z);
+            if (!testLoc.getBlock().getType().isSolid() &&
+                    testLoc.clone().add(0, 1, 0).getBlock().isPassable()) {
+                return testLoc.add(0.5, 0, 0.5); // 居中坐标
+            }
+        }
+        return loc; // 保底返回原坐标
+    }
+
+
+
+
+
+
+
+
+
+    // 新增实体移动事件监听
+
+
+    private void handleEntityMovement(Entity entity, Location to) {
+        Location loc = to.clone();
+
+        // 处理X轴边界
+        if (Math.abs(loc.getX()) > config.xBoundary) {
+            handleXBoundary2(entity, loc);
+            entity.teleport(loc);
+            return;
+        }
+
+        // 处理Z轴边界
+        if (Math.abs(loc.getZ()) > config.zBoundary) {
+            handleZBoundary2(entity, loc);
+            entity.teleport(loc);
+        }
+    }
+
+    // 非玩家实体X轴处理
+    private void handleXBoundary2(Entity entity, Location loc) {
+        double sign = Math.signum(loc.getX());
+        double newX = (-sign * config.xBoundary) + (sign * 1);
+        loc.setX(newX);
+
+        // 矿车等载具需要重置速度
+        if (entity instanceof Vehicle) {
+            entity.setVelocity(new Vector(0, 0, 0));
+        }
+    }
+
+    // 非玩家实体Z轴处理
+    private void handleZBoundary2(Entity entity, Location loc) {
+        final double halfWidth = config.xBoundary;
+        double originalX = loc.getX();
+        double originalZ = loc.getZ();
+        double signZ = Math.signum(originalZ);
+
+        // 计算对侧经线坐标
+        double newX = (originalX - halfWidth + 2 * halfWidth) % (2 * halfWidth) - halfWidth;
+        double newZ = (signZ > 0) ? (config.zBoundary - 1) : (-config.zBoundary + 1);
+
+        // 应用新坐标
+        loc.setX(newX);
+        loc.setZ(newZ);
+
+        // 生物实体反转移动方向（模拟环绕效果）
+        if (entity instanceof LivingEntity) {
+            LivingEntity livingEntity = (LivingEntity) entity;
+            Location targetLoc = livingEntity.getEyeLocation();
+            targetLoc.setYaw((targetLoc.getYaw() + 180) % 360);
+            livingEntity.teleport(targetLoc);
+        }
+
+        // 载具类实体需要重置速度
+        if (entity instanceof Vehicle) {
+            entity.setVelocity(new Vector(0, 0, 0));
+            // 矿车需要二次校准
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    entity.teleport(loc.clone().add(0, 0.1, 0)); // 防止卡轨
+                }
+            }.runTaskLater(this, 1);
+        }
+    }
+
+
+
+
+    // 扫描并处理所有需要检测的实体
+    private void checkAllEntities() {
+        for (World world : getServer().getWorlds()) {
+            Collection<Entity> entities = world.getEntities();
+            for (Entity entity : entities) {
+                // 过滤掉玩家和不需要处理的实体
+                if (entity instanceof Player) continue;
+                if (!(entity instanceof LivingEntity) && !(entity instanceof Vehicle)) continue;
+
+                checkEntityBoundary(entity);
+            }
+        }
+    }
+
+    // 实体边界检测核心方法
+    private void checkEntityBoundary(Entity entity) {
+        Location loc = entity.getLocation().clone();
+        boolean modified = false;
+
+        // 处理X轴
+        if (Math.abs(loc.getX()) > config.xBoundary) {
+            handleXBoundaryForEntity(loc);
+            modified = true;
+        }
+
+        // 处理Z轴
+        if (Math.abs(loc.getZ()) > config.zBoundary) {
+            handleZBoundaryForEntity(loc);
+            modified = true;
+        }
+
+        if (modified) {
+            entity.teleport(loc);
+            // 特殊处理矿车类实体
+            if (entity instanceof Minecart) {
+                entity.setVelocity(new Vector(0, 0, 0));
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        entity.teleport(loc.clone().add(0, 0.1, 0));
+                    }
+                }.runTaskLater(this, 1);
+            }
+        }
+    }
+
+    // 非玩家实体X轴处理
+    private void handleXBoundaryForEntity(Location loc) {
+        double sign = Math.signum(loc.getX());
+        double newX = (-sign * config.xBoundary) + (sign * 1);
+        loc.setX(newX);
+    }
+
+    // 非玩家实体Z轴处理
+    private void handleZBoundaryForEntity(Location loc) {
+        final double halfWidth = config.xBoundary;
+        double originalX = loc.getX();
+        double newX = (originalX - halfWidth + 2 * halfWidth) % (2 * halfWidth) - halfWidth;
+        double newZ = (Math.signum(loc.getZ()) > 0) ?
+                (config.zBoundary - 1) : (-config.zBoundary + 1);
+
+        loc.setX(newX);
+        loc.setZ(newZ);
+
+        // 生物实体转向
+        if (loc.getWorld().getNearbyEntities(loc, 1, 1, 1).stream()
+                .anyMatch(e -> e instanceof LivingEntity)) {
+            loc.setYaw((loc.getYaw() + 180) % 360);
         }
     }
 }
