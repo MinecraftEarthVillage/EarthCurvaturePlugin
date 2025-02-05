@@ -241,4 +241,42 @@ Tigercrl的代码，emmm...虽然很复杂且没有派上用场，但仍有参�
         }
         return null;
     }
-}
+*/
+
+    //新高度修正法——寻找可站立方块
+    private static Integer findBlock(Location loc) {
+   //这个方法基础是——从上往下遍历方块
+        // 获取位置所在的世界
+        World 当前世界 = loc.getWorld();//←变量取名太随便（尤其是只写个字母），以后会看不懂的（doge）不管如何，I Love 汉字~
+
+        int x = (int) Math.round(loc.getX()-0.5);// 获取位置所在区块的X坐标（带四舍五入）(-0.5修正误差，我也不知道为什么会有个BUG)
+        //int x = (int) (loc.getX()-0.5);// 获取位置所在区块的X坐标（不四舍五入）
+
+        // 获取位置所在区块的Y坐标
+        int y = (int) Math.round(loc.getY());
+
+       // int z = (int) Math.round(loc.getZ());// 获取位置所在区块的Z坐标（带四舍五入算法的）
+        int z = (int) loc.getZ();// 获取位置所在区块的Z坐标（不四舍五入）
+        //System.out.println("目的地Z坐标:"+z);// 打印Z坐标，调试信息
+        // 从256（兼容旧版本）开始，向下遍历，直到-64（这里不确定要不要改0）
+
+        for (int j = 256; j >= -64; j--) {
+            // 获取当前位置的方块
+            Block block = 当前世界.getBlockAt(x, j, z);
+            // 如果方块的材质是固体或者液体（只要不是空气），则返回当前Y坐标（取名为j）
+            if (!block.getType().isAir()) {
+                if (调试信息) {
+                    System.out.println("有实体触发了传送！" +
+                            "目的地坐标" +
+                            "X=" + x + "Y=" + j + "Z=" + z);// 打印调试信息
+                }
+                return j;
+            }
+        }
+
+        // 如果没有找到固体方块，则直接丢虚空(doge
+        return y;
+
+    }
+
+    }
