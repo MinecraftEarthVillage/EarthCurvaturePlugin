@@ -1,19 +1,19 @@
 package top.earthvillage.earthcurvatureplugin;
 
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.entity.*;
-import org.bukkit.event.EventHandler;
+import org.bukkit.entity.Entity;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerMoveEvent;
-import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
 import java.util.Collection;
+import java.util.List;
+import java.util.function.Function;
 
 
 public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
@@ -33,183 +33,13 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         }.runTaskTimer(this, 0L, 20L);
     }
 
-    // 在玩家移动事件处理方法中添加载具检测
-    @EventHandler
-    public void 玩家移动事件(PlayerMoveEvent event) {
-        // 获取事件发生前的位置
-        Location from = event.getFrom();
-        // 获取事件发生后新的位置
-        Location to = event.getTo();
-        if (from.getX() == to.getX() && from.getZ() == to.getZ()) return;
-
-        // 克隆to对象，并将克隆后的对象赋值给loc
-        Location loc = to.clone();
-        Player player = event.getPlayer();
-        // 处理X轴边界（东西经180度）
-        // 如果loc的x坐标的绝对值大于config的xBoundary
-        if (Math.abs(loc.getX()) > config.xBoundary) {
-
-            // 处理x边界
-            handleXBoundary(loc, player);
-            // 将event的to属性设置为loc
-            event.setTo(loc);
-            // 返回
-            return;
-        }
-
-        // 处理Z轴边界（南北极）
-        if (Math.abs(loc.getZ()) > config.zBoundary) {
-            handleZBoundary(loc, player);
-            event.setTo(loc);
-        }
-    }
-
-    // 新增方法：统一处理载具与玩家的同步传送
-    private void handleVehicleAndPlayer(Player player, Location newLoc, float yawOffset) {
-        Entity vehicle = player.getVehicle();
-        if (vehicle == null) return;
-        // 应用高度修正
-        newLoc.setY(newLoc.getY() + config.高度偏移);
-        // 让玩家暂时离开载具
-        player.leaveVehicle();
-
-        // 计算载具与玩家的相对偏移
-        Location vehicleLoc = vehicle.getLocation();
-        double offsetX = vehicleLoc.getX() - player.getLocation().getX();
-        double offsetZ = vehicleLoc.getZ() - player.getLocation().getZ();
-
-        // 计算载具新坐标和方向（应用Yaw偏移）
-        Location vehicleNewLoc = newLoc.clone().add(offsetX, config.高度偏移, offsetZ);
-        float vehicleNewYaw = (vehicleLoc.getYaw() + yawOffset) % 360.0f;
-        if (vehicleNewYaw < 0) vehicleNewYaw += 360.0f;
-        vehicleNewLoc.setYaw(vehicleNewYaw); // 同步载具Yaw
-        vehicleNewLoc.setPitch(vehicleLoc.getPitch());
-
-        // 停止载具速度并传送
-        vehicle.setVelocity(new Vector(0, 0, 0));
-        vehicle.teleport(vehicleNewLoc, PlayerTeleportEvent.TeleportCause.PLUGIN);
-
-        // 延迟重新绑定玩家到载具
-// 在延迟任务中添加坐标验证
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (player.isOnline()) {
-                    // 确保两者坐标在阈值范围内
-                    if (vehicle.getLocation().distance(player.getLocation()) < 2.0) {
-                        vehicle.addPassenger(player);
-                        //getLogger().info("坐标验证通过，重绑成功");
-                    } else {
-                        getLogger().warning("坐标偏差过大：玩家=" + player.getLocation() + " 载具=" + vehicle.getLocation());
-                    }
-                }
-            }
-        }.runTaskLater(this, 2);
-    }
-    // X轴越界
-    private void handleXBoundary(Location loc, Player player) {
-        double sign = Math.signum(loc.getX());
-        double newX = (-sign * config.xBoundary) + (sign * 1);
-        loc.setX(newX);
-
-        Location newLoc = loc.clone();
-        newLoc.setYaw(player.getLocation().getYaw());
-        newLoc.setPitch(player.getLocation().getPitch());
-
-
-
-//尝试修复矿车问题
-        if (player.isInsideVehicle()) {
-            // 如果玩家在交通工具内
-            // 处理载具和玩家（这里不需要反转了）
-            handleVehicleAndPlayer(player, newLoc,0.0f);
-            player.sendMessage("你刚刚乘坐着载具环绕了地球一圈！");//调试信息
-        }else {
-
-            newLoc.setY(newLoc.getY() + config.高度偏移); // 添加高度修正
-            player.teleport(newLoc);
-
-            player.sendMessage("你刚刚环绕了地球一圈！");//调试信息
-
-        }
-    }
-
-    /*
-    Z方向就相当于现实中南北方向（沿着经线）
-    这个Z轴越界逻辑想破脑袋几个月了才摸索出来
-    在平面地图还原跨越极点是很难想象的
-     */
-    private void handleZBoundary(Location loc, Player player) {
-        // 地图参数
-        final double halfWidth = config.xBoundary; // 配置文件里的X边界数值就是地图宽度的一半
-
-        // 获取当前坐标
-        double originalX = loc.getX();
-        double originalZ = loc.getZ();
-        double signZ = Math.signum(originalZ);
-
-
-        // 计算对侧经线坐标
-        double newX = originalX - halfWidth;
-        if (newX < -halfWidth) {
-            newX += halfWidth * 2; // 处理西边界溢出
-        }
-
-        // 计算新Z坐标（边界内1格）
-        double newZ = (signZ > 0) ? (config.zBoundary - 1) : (-config.zBoundary + 1);
-
-        // 计算玩家和载具的Yaw反转角度（180度）
-        float originalYaw = player.getLocation().getYaw();
-        float newYaw = (originalYaw + 180.0f) % 360.0f;
-        if (newYaw < 0) newYaw += 360.0f;
-
-        Location newLoc = new Location(
-                loc.getWorld(),
-                newX,
-                loc.getY(),
-                newZ,
-                newYaw,
-                player.getLocation().getPitch()
-        );
-
-        // 处理载具和玩家，传入Yaw偏移量（180度）
-        if (player.isInsideVehicle()) {
-            handleVehicleAndPlayer(player, newLoc, 180.0f);
-        }else {
-            // 最终执行传送
-
-            player.teleport(newLoc.add(0, config.高度偏移, 0), PlayerTeleportEvent.TeleportCause.PLUGIN); // 修正高度
-            loc.setX(newX); // 同步更新事件坐标
-            loc.setZ(newZ);
-            player.sendMessage("你刚刚跨越了地理极点！");//调试信息
-            player.sendMessage("原方向:" + originalYaw + " → 新方向:" + newYaw);//调试信息
-        }
-        // ====== 关键修复：强制视角同步 ======
-        // 方法一：使用TeleportCause解决同步问题
-        player.teleport(newLoc, PlayerTeleportEvent.TeleportCause.PLUGIN);
-
-        // 方法二：延迟1 tick强制更新视角
-        float finalNewYaw = newYaw;
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                Location syncLoc = newLoc.clone();
-                syncLoc.setYaw(finalNewYaw);
-                syncLoc.setPitch(player.getLocation().getPitch());
-                player.teleport(syncLoc);
-            }
-        }.runTaskLater(this, 1);
-    }
-
     private static class Configuration {
         public final double xBoundary;
         public final double zBoundary;
-        public final double 高度偏移; // 新增高度修正配置
 
         public Configuration(FileConfiguration cfg) {
-            xBoundary = cfg.getDouble("boundary.x", 30000);
-            zBoundary = cfg.getDouble("boundary.z", 30000);
-            高度偏移 = cfg.getDouble("高度偏移", 0.1); // 新增配置项
+            xBoundary = cfg.getDouble("boundary.x", 1000);
+            zBoundary = cfg.getDouble("boundary.z", 1000);
         }
     }
 
@@ -220,7 +50,8 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
             Collection<Entity> entities = world.getEntities();
             for (Entity entity : entities) {
                 // 过滤掉玩家和不需要处理的实体
-                //  if (entity instanceof Player) continue;
+                // 如果entity是Player类型，则跳过本次循环
+//                if (entity instanceof Player) continue;
                 // if (!(entity instanceof LivingEntity) && !(entity instanceof Vehicle)) continue;
 
                 checkEntityBoundary(entity);
@@ -232,6 +63,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
     private void checkEntityBoundary(Entity entity) {
         Location loc = entity.getLocation().clone();
         boolean modified = false;
+        boolean reverseVector = false;
 
         // 处理X轴
         if (Math.abs(loc.getX()) > config.xBoundary) {
@@ -239,71 +71,156 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
             modified = true;
         }
 
-        // 新增Z轴处理
+        // Z轴处理
+        // 如果loc的Z坐标的绝对值大于config的zBoundary
+        // 如果实体的Z坐标绝对值大于配置的Z边界值
         if (Math.abs(loc.getZ()) > config.zBoundary) {
+            // 处理实体的Z边界
             handleZBoundaryForEntity(loc);
+            // 标记为已修改
             modified = true;
+            // 设置反向向量
+            reverseVector = true;
         }
 
         if (modified) {
-            entity.teleport(loc);//直接传送，不修正高度
-            // 特殊处理矿车类实体
-            if (entity instanceof Minecart) {
-                entity.setVelocity(new Vector(0, 0, 0));
-                new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        // 二次坐标修正防止卡区块
-                        entity.teleport(loc.clone().add(0, 0.1, 0));
-                    }
-                }.runTaskLater(this, 1);
+            // 如果实体已经修改过，则返回
+            if (entity.getVehicle() != null) return;
+            handleYBoundary(loc); // 修正到可生成的位置
+            // 开始处理
+            Vector v = entity.getVelocity();
+            entity.setVelocity(new Vector(0, 0, 0));
+            // 获取实体中的乘客列表
+            // 获取实体上的乘客列表
+            List<Entity> passengers = entity.getPassengers();
+            // 遍历乘客列表，将每个乘客从实体上移除
+            for (Entity e : passengers) {
+                entity.removePassenger(e);
             }
-
-            // 同步更新实体的旋转角度
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    entity.teleport(loc); // 强制角度同步
-                }
-            }.runTaskLater(this, 2);
+            // 将实体传送到指定位置
+            entity.teleport(loc);
+            // 遍历乘客列表，将每个乘客重新添加到实体上
+            for (Entity e : passengers) {
+                entity.addPassenger(e);
+            }
+            // 设置实体的速度
+            if(reverseVector){
+                v.setX(-v.getX());
+                v.setY(-v.getY());
+            }
+            entity.setVelocity(v);
         }
     }
 
     // 非玩家实体X轴处理
+    // 处理实体的X边界
     private void handleXBoundaryForEntity(Location loc) {
-        double sign = Math.signum(loc.getX());
-        double newX = (-sign * config.xBoundary) + (sign * 1);
-        loc.setX(newX);
+        // 如果实体的X坐标大于0，则将实体的X坐标设置为-config.xBoundary，否则设置为config.xBoundary
+        loc.setX((loc.getX() > 0 ? -config.xBoundary : config.xBoundary) );
     }
 
     // 实体Z轴越界处理
     private void handleZBoundaryForEntity(Location loc) {
-        final double halfWidth = config.xBoundary;
-        double originalX = loc.getX();
-        double originalZ = loc.getZ();
-        double signZ = Math.signum(originalZ);
-
         // 计算对侧坐标
-        double newX = originalX - halfWidth;
-        if (newX < -halfWidth) {
-            newX += halfWidth * 2;
+        // 计算新的X坐标
+        double newX = loc.getX() - config.xBoundary;
+        // 如果新的X坐标小于-config.xBoundary，则将其加上2倍的config.xBoundary
+        if (newX < -config.xBoundary) {
+            newX += config.xBoundary * 2;
         }
 
         // 计算新Z坐标
-        double newZ = (signZ > 0) ? (config.zBoundary - 1) : (-config.zBoundary + 1);
+        double newZ = loc.getZ() > 0 ? config.zBoundary - 1 : 1 - config.zBoundary;
 
         // 调整Yaw方向（180度反转）
-        float newYaw = (loc.getYaw() + 180.0f) % 360.0f;
-        if (newYaw < 0) newYaw += 360.0f;
+        float newYaw = (loc.getYaw() + 180) % 360;
+        if (newYaw < 0) newYaw += 360;
 
         // 应用新坐标和角度
-        loc.setX(newX);
-        loc.setZ(newZ);
-        loc.setYaw(newYaw);
 
-        // 应用高度偏移
-        loc.setY(loc.getY() + config.高度偏移);
+// 设置loc对象的x坐标为newX
+        loc.setX(newX );
+// 设置loc对象的z坐标为newZ
+        loc.setZ(newZ);
+        // 设置新的朝向
+        loc.setYaw(newYaw);
     }
 
 
+    // 尝试处理Y轴，去解决卡墙和悬空问题
+    private static void handleYBoundary(Location loc) {
+        Integer y = getSpawnableY(loc);
+        System.out.println("TP Y坐标：" + y);
+        loc.setY(Math.round(y == null ? loc.getY() : y));
+    }
+
+    private static Integer getSpawnableY(Location loc) {
+        // 获取位置所在的世界
+        World w = loc.getWorld();
+        // 获取位置所在区块的X坐标
+        int x = (int) Math.round(loc.getX());
+        // 获取位置所在区块的Y坐标
+        int y = (int) Math.round(loc.getY());
+        // 获取位置所在区块的Z坐标
+        int z = (int) Math.round(loc.getZ());
+
+        // 定义一个函数，用于判断方块是否是固体
+        Function<Block, Boolean> motionBlockingMaterial = b -> {
+            Material m = b.getType();
+            return m != Material.COBWEB && m != Material.BAMBOO_SAPLING && b.getType().isSolid();
+        };
+
+        // 定义一个函数，用于判断方块是否是空气
+        Function<Block, Boolean> isAir = b -> b.getType().isAir();
+
+        // 遍历y坐标
+        boolean b1 = false;
+        boolean b2 = false;
+        for(int i = 0;; i++) {
+            if (b1 && b2) break;
+            int y2 = y + (i % 2 == 0 ? i / 2 : (i + 1) / -2);
+            // 如果y坐标大于最大高度，则跳过
+            if (y2 > w.getMaxHeight()) {
+                b1 = true;
+                continue;
+            }
+            // 如果y坐标小于最小高度，则跳过
+            if (y2 < w.getMinHeight()) {
+                b2 = true;
+                continue;
+            }
+            // 获取当前位置的方块
+            Block b = w.getBlockAt(x, y2, z);
+            // 如果方块不是阻挡材料，则跳过
+            if(!motionBlockingMaterial.apply(b)) {
+                if (y2 < -30) System.out.println("方块x" + x + "y" + y2 + "z" + z + "不能站脚");
+                continue;
+            } // 不能站脚
+            // 如果y坐标等于最大高度或者上方是空气，则返回y+1
+            if (y == w.getMaxHeight() || isAir.apply(w.getBlockAt(x, y + 1, z)))
+                return y + 1; // 上方是空气，可TP
+        }
+        // 不行找水面
+        b1 = false;
+        b2 = false;
+        for(int i = 0;; i++) {
+            if (b1 && b2) break;
+            int y2 = y + (i % 2 == 0 ? i / 2 : (i + 1) / -2);
+            // 如果y坐标大于最大高度，则跳过
+            if (y2 > w.getMaxHeight()) {
+                b1 = true;
+                continue;
+            }
+            // 如果y坐标小于最小高度，则跳过
+            if (y2 < w.getMinHeight()) {
+                b2 = true;
+                continue;
+            }
+            // 获取当前位置的方块
+            Block b = w.getBlockAt(x, y2, z);
+            if (b.getType() == Material.WATER && (y == w.getMaxHeight() || isAir.apply(w.getBlockAt(x, y + 1, z))))
+                return y + 1; // 上方是空气，可TP
+        }
+        return null;
+    }
 }
