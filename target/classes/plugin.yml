@@ -1,4 +1,0 @@
-name: EarthCurvaturePlugin
-version: '1'
-main: top.earthvillage.earthcurvatureplugin.EarthCurvaturePlugin
-api-version: '1.20'
