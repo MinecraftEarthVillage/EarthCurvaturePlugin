@@ -36,7 +36,9 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
     // 在玩家移动事件处理方法中添加载具检测
     @EventHandler
     public void 玩家移动事件(PlayerMoveEvent event) {
+        // 获取事件发生前的位置
         Location from = event.getFrom();
+        // 获取事件发生后新的位置
         Location to = event.getTo();
         if (from.getX() == to.getX() && from.getZ() == to.getZ()) return;
 
@@ -44,10 +46,14 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         Location loc = to.clone();
         Player player = event.getPlayer();
         // 处理X轴边界（东西经180度）
+        // 如果loc的x坐标的绝对值大于config的xBoundary
         if (Math.abs(loc.getX()) > config.xBoundary) {
 
+            // 处理x边界
             handleXBoundary(loc, player);
+            // 将event的to属性设置为loc
             event.setTo(loc);
+            // 返回
             return;
         }
 
