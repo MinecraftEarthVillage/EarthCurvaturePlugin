@@ -1,7 +1,6 @@
 package top.earthvillage.earthcurvatureplugin;
 
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -13,16 +12,24 @@ import org.bukkit.util.Vector;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Function;
+
+
 
 
 public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
     private static Configuration config;
 
+    private static boolean 调试信息;
+
+    public void 读取配置项(){
+        调试信息 = getConfig().getBoolean("调试信息",false);
+    }
+
     @Override
     public void onEnable() {
         saveDefaultConfig();
         config = new Configuration(getConfig());
+        读取配置项();
         getServer().getPluginManager().registerEvents(this, this);
         // 新增实体检测定时任务（每20 ticks执行一次）
         new BukkitRunnable() {
@@ -86,17 +93,18 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         if (modified) {
             // 如果实体已经修改过，则返回
             if (entity.getVehicle() != null) return;
-            handleYBoundary(loc); // 修正到可生成的位置
+
             // 开始处理
             Vector v = entity.getVelocity();
-            entity.setVelocity(new Vector(0, 0, 0));
+// 设置实体的速度为(0, 0, 0)
+        //    entity.setVelocity(new Vector(0, 0, 0));
             // 获取实体中的乘客列表
-            // 获取实体上的乘客列表
             List<Entity> passengers = entity.getPassengers();
             // 遍历乘客列表，将每个乘客从实体上移除
             for (Entity e : passengers) {
                 entity.removePassenger(e);
             }
+            handleYBoundary(loc); // 修正高度Y
             // 将实体传送到指定位置
             entity.teleport(loc);
             // 遍历乘客列表，将每个乘客重新添加到实体上
@@ -112,8 +120,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         }
     }
 
-    // 非玩家实体X轴处理
-    // 处理实体的X边界
+    // 处理实体的X边界越界
     private void handleXBoundaryForEntity(Location loc) {
         // 如果实体的X坐标大于0，则将实体的X坐标设置为-config.xBoundary，否则设置为config.xBoundary
         loc.setX((loc.getX() > 0 ? -config.xBoundary : config.xBoundary) );
@@ -130,6 +137,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         }
 
         // 计算新Z坐标
+// 如果loc的z坐标大于0，则将newZ赋值为config的zBoundary减1，否则将newZ赋值为1减去config的zBoundary
         double newZ = loc.getZ() > 0 ? config.zBoundary - 1 : 1 - config.zBoundary;
 
         // 调整Yaw方向（180度反转）
@@ -147,13 +155,23 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
     }
 
 
+
+
+    //新高度修正法
     // 尝试处理Y轴，去解决卡墙和悬空问题
     private static void handleYBoundary(Location loc) {
-        Integer y = getSpawnableY(loc);
-        System.out.println("TP Y坐标：" + y);
-        loc.setY(Math.round(y == null ? loc.getY() : y));
+        // 获取可生成的Y坐标
+        Integer 安全落地y = findBlock(loc);
+        // 打印TP Y坐标，调试信息
+        //System.out.println("TP Y坐标：" + 安全落地y);
+        // 设置Y坐标
+// 将loc的y坐标设置为“安全落地y”的值加1，如果安全y为null，则设置为loc的y坐标（无更改）
+        loc.setY(/*Math.round*/(/*安全落地y == null ? loc.getY() : */安全落地y+1));
+        //这个“安全落地y”也就是下面getSpawnableYEx方法 从上往下找到的第一个方块的位置
+        //要使得玩家能够站上去，就要加一
     }
-
+/*
+Tigercrl的代码，emmm...虽然很复杂且没有派上用场，但仍有参考价值
     private static Integer getSpawnableY(Location loc) {
         // 获取位置所在的世界
         World w = loc.getWorld();
