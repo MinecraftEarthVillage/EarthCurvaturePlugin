@@ -1,0 +1,7 @@
+# 越南
+messages:
+  跨越X坐标边界: "&aBạn vừa đi vòng quanh hành tinh!"
+  跨越极点: "&aBạn vừa vượt qua cực địa lý của hành tinh!"
+  世界配置生成: "&aĐã tạo cấu hình biên giới mặc định cho thế giới {world}: x={value}"
+  世界未配置: "&cKhông tìm thấy cấu hình biên giới cho thế giới {world}, đã bỏ qua."
+  控制台输出: "&7[Gỡ lỗi] Thực thể đã dịch chuyển - Tọa độ đích X={x} Y={y} Z={z}"

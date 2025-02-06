@@ -5,8 +5,9 @@
       <configuration>
         <autoDetectTypes>
           <platformType>SPIGOT</platformType>
+          <platformType>PAPER</platformType>
         </autoDetectTypes>
-        <projectReimportVersion>第三完善版</projectReimportVersion>
+        <projectReimportVersion>1</projectReimportVersion>
       </configuration>
     </facet>
   </component>
