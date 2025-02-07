@@ -2,6 +2,6 @@
 messages:
   跨越X坐标边界: "&a¡Acabas de rodear el planeta!"
   跨越极点: "&a¡Cruzaste el polo geográfico del planeta!"
-  世界配置生成: "&aConfiguración predeterminada generada para el mundo {world}: x={value}"
-  世界未配置: "&cNo se encontró configuración de límites para el mundo {world}, omitido."
+  世界配置生成: "&aConfiguración predeterminada generada para el mundo {世界}: x={X-value}，z={Z-value}"
+  世界未配置: "&cNo se encontró configuración de límites para el mundo {世界}, omitido."
   控制台输出: "&7[Debug] Entidad teletransportada - Coordenadas X={x} Y={y} Z={z}"

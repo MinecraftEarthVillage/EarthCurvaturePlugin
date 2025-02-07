@@ -1,6 +1,7 @@
 调试信息: false #debug mode
-语言: zh_cn # 可选值：zh_cn/zh_tw/es_cu/lo_la/vi_vn/ko_kp
+语言: zh_cn # 可选值：zh_cn/zh_tw/es_cu/lo_la/vi_vn/ko_kp（看你的文件夹）
 跨越时发送聊天栏消息: true #字面意思
+恢复骑乘: true #玩家或实体直接存在骑乘关系时，穿越边界后，是否自动恢复骑乘状态。性能影响很大！如果你的服务器比较卡，不建议开启此项
 boundary:
   世界1:
     x: 1000   # X轴最大边界（单位：方块）

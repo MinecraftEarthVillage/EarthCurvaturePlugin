@@ -31,6 +31,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
     // 定义一个静态的boolean类型的变量调试信息
     private static boolean 调试信息;
     public boolean 跨越时发送聊天栏消息;
+    public boolean 恢复骑乘;
     public 多国语言 langConfig;
 
     //变量区↑
@@ -38,6 +39,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
     public void 读取配置项(){
         调试信息 = getConfig().getBoolean("调试信息",false);
         跨越时发送聊天栏消息 = getConfig().getBoolean("跨越时发送聊天栏消息",false);
+        恢复骑乘 = getConfig().getBoolean("恢复骑乘",true);
         // 遍历配置文件中的所有键
         for(String key : getConfig().getKeys(true)){
             // 如果键以"boundary."开头，以".x"结尾
@@ -46,18 +48,14 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
                 String name = key.split("\\.")[1];
                 // 将名称和对应的x、z坐标存入boundary中
                 boundary.put(name, new Integer[] {
+                        // 获取配置文件中指定名称的边界x坐标
                         getConfig().getInt("boundary." + name + ".x"),
+                        // 获取配置文件中指定名称的边界z坐标
                         getConfig().getInt("boundary." + name + ".z")
                 });
             }
         }
         langConfig.loadConfig();
-    }
-    // 新增重载方法（以后要不弄个重载指令？不过我一般直接用服务端自带的）
-    public void reloadConfig() {
-        reloadConfig();
-        langConfig.loadConfig();
-        this.读取配置项();
     }
     // 生成默认世界边界配置
     private void generateDefaultWorldConfig() {
@@ -65,7 +63,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         final int DEFAULT_X_BOUNDARY = 1000;
         final int DEFAULT_Z_BOUNDARY = 1000;
 
-        // 遍历所有世界
+// 遍历所有世界
         for (World world : getServer().getWorlds()) {
             // 获取世界的名称
             String worldName = world.getName();
@@ -75,31 +73,34 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
             String zPath = "boundary." + worldName + ".z";
 
             // 如果配置不存在，则设置默认值
-            // 如果配置文件中不包含xPath，则设置默认的x边界值
-            if (!getConfig().contains(xPath)) {
+            // 如果配置文件中不包含xPath或zPath，则设置默认的x z边界值
+            if (!getConfig().contains(xPath) || !getConfig().contains(zPath)) {
                 getConfig().set(xPath, DEFAULT_X_BOUNDARY);
-                getLogger().info(langConfig.format("世界配置生成", worldName, DEFAULT_X_BOUNDARY));
-            }
-            // 如果配置文件中不包含zPath，则设置默认的z边界值
-            if (!getConfig().contains(zPath)) {
                 getConfig().set(zPath, DEFAULT_Z_BOUNDARY);
-                getLogger().info(langConfig.format("世界配置生成",worldName,DEFAULT_Z_BOUNDARY));
+                getLogger().info(langConfig.format("世界配置生成",
+                        "{世界}", worldName,
+                        "{X-value}", DEFAULT_X_BOUNDARY,
+                        "{Z-value}", DEFAULT_Z_BOUNDARY));
             }
         }
         // 保存配置文件
         saveConfig();
     }
+
     @Override
     public void onEnable() {
         instance = this; // 在启用时保存实例
         try {//用这个抛出异常
             saveDefaultConfig();//从jar复制示例模板配置文件
-            // 生成默认的世界配置
-            generateDefaultWorldConfig();
-            读取配置项();
-            langConfig = new 多国语言(this);
+            langConfig = new 多国语言(this);//先初始化语言配置
             langConfig.saveDefaultConfig();
             langConfig.loadConfig();
+            // 生成默认的世界配置（此时langConfig已可用，一定要把generateDefaultWorldConfig放在后面）
+            generateDefaultWorldConfig();
+            读取配置项();
+
+
+
             getServer().getPluginManager().registerEvents(this, this);
             // 实体检测定时任务（每10tick执行一次）
             new BukkitRunnable() {
@@ -207,7 +208,9 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
             // 遍历乘客列表，将每个乘客重新添加到实体上
             // 重新添加时检查有效性
             for (Entity e : passengers) {
-                if (e.isValid()) entity.addPassenger(e);
+                if (恢复骑乘) {
+                    if (e.isValid()) entity.addPassenger(e);
+                }
             }
             // 设置实体的速度（这个没有起效果）
             /*

@@ -27,7 +27,17 @@ public class 多国语言 {
 
         // 保存默认语言文件
         plugin.saveResource("lang/zh_cn.yml", false);
-        plugin.saveResource("lang/en_us.yml", false);
+        plugin.saveResource("lang/bo_cn.yml", false);
+        plugin.saveResource("lang/kk_cn.yml", false);
+        plugin.saveResource("lang/mn_cn.yml", false);
+        plugin.saveResource("lang/ug_cn.yml", false);
+        plugin.saveResource("lang/zh_tw.yml", false);
+        plugin.saveResource("lang/mn_mn.yml", false);
+        plugin.saveResource("lang/es_cu.yml", false);
+        plugin.saveResource("lang/lo_la.yml", false);
+        plugin.saveResource("lang/vi_vn.yml", false);
+        plugin.saveResource("lang/ko_kp.yml", false);
+        plugin.getLogger().info("默认语言保持完毕");
     }
 
     public void loadConfig() {
@@ -35,7 +45,8 @@ public class 多国语言 {
         defaultLanguage = plugin.getConfig().getString("语言", "zh_cn");
         consoleLanguage = plugin.getConfig().getString("语言", "zh_cn");
         // 加载所有语言文件
-        languages.clear();
+
+        languages.clear();// 清空languages集合
         File langDir = new File(plugin.getDataFolder(), "lang");
         for (File file : langDir.listFiles()) {
             if (file.getName().endsWith(".yml")) {
@@ -55,9 +66,13 @@ public class 多国语言 {
         return getMessage(key);
     }
 */
+    // 根据键和语言获取消息
     private String getMessage(String key, String lang) {
+        // 获取指定语言的配置文件，如果没有则获取默认语言的配置文件
         YamlConfiguration language = languages.getOrDefault(lang, languages.get(defaultLanguage));
+        // 获取指定键的消息，如果没有则返回键本身
         String message = language.getString("messages." + key, key);
+        // 将消息中的颜色代码转换为Minecraft颜色代码
         return ChatColor.translateAlternateColorCodes('&', message);
     }
 
