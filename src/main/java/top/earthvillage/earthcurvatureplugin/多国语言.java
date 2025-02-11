@@ -2,7 +2,6 @@ package top.earthvillage.earthcurvatureplugin;
 
 import org.bukkit.ChatColor;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Player;
 
 import java.io.File;
 import java.util.HashMap;
@@ -20,24 +19,30 @@ public class 多国语言 {
         this.plugin = plugin;
     }
 
-    public void saveDefaultConfig() {
+    public void 检查语言文件() {
         // 创建语言文件目录
         File langDir = new File(plugin.getDataFolder(), "lang");
-        if (!langDir.exists()) langDir.mkdirs();
+        // 如果语言目录不存在，则创建语言目录
+        if (!langDir.exists()) {
+            langDir.mkdirs();
+        }
 
-        // 保存默认语言文件
-        plugin.saveResource("lang/zh_cn.yml", false);
-        plugin.saveResource("lang/bo_cn.yml", false);
-        plugin.saveResource("lang/kk_cn.yml", false);
-        plugin.saveResource("lang/mn_cn.yml", false);
-        plugin.saveResource("lang/ug_cn.yml", false);
-        plugin.saveResource("lang/zh_tw.yml", false);
-        plugin.saveResource("lang/mn_mn.yml", false);
-        plugin.saveResource("lang/es_cu.yml", false);
-        plugin.saveResource("lang/lo_la.yml", false);
-        plugin.saveResource("lang/vi_vn.yml", false);
-        plugin.saveResource("lang/ko_kp.yml", false);
-        plugin.getLogger().info("默认语言保持完毕");
+        // 定义所有默认语言文件
+        String[] defaultLanguages = {
+                "zh_cn.yml", "bo_cn.yml", "kk_cn.yml", "mn_cn.yml", "ug_cn.yml",
+                "zh_tw.yml", "mn_mn.yml", "es_cu.yml", "lo_la.yml", "vi_vn.yml", "ko_kp.yml"
+        };
+
+        // 遍历所有默认语言文件
+        for (String langFile : defaultLanguages) {
+            File targetFile = new File(langDir, langFile);
+            // 如果文件不存在，则保存默认语言文件
+            if (!targetFile.exists()) {
+                plugin.saveResource("lang/" + langFile, false);
+            }
+        }
+
+        plugin.getLogger().info("默认语言文件检查完毕");
     }
 
     public void loadConfig() {

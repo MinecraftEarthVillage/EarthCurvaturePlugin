@@ -1,6 +1,5 @@
 package top.earthvillage.earthcurvatureplugin;
 
-import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -39,6 +38,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
     //变量区↑
 
     public void 读取配置项(){
+        boundary.clear(); // 清空旧配置
         调试信息 = getConfig().getBoolean("调试信息",false);
         跨越时发送聊天栏消息 = getConfig().getBoolean("跨越时发送聊天栏消息",false);
         恢复骑乘 = getConfig().getBoolean("恢复骑乘",true);
@@ -95,14 +95,14 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         try {//用这个抛出异常
             saveDefaultConfig();//从jar复制示例模板配置文件
             langConfig = new 多国语言(this);//先初始化语言配置
-            langConfig.saveDefaultConfig();
+            langConfig.检查语言文件();
             langConfig.loadConfig();
             // 生成默认的世界配置（此时langConfig已可用，一定要把generateDefaultWorldConfig放在后面）
             generateDefaultWorldConfig();
             读取配置项();
 
-            System.out.println(langConfig.getMessage("插件启动"));
-
+            //System.out.println(langConfig.getMessage("插件启动"));
+            getLogger().info(langConfig.getMessage("插件启动"));
             getServer().getPluginManager().registerEvents(this, this);
             // 实体检测定时任务（每10tick执行一次）
             new BukkitRunnable() {
@@ -123,14 +123,8 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
-        //System.out.println(langConfig.getMessage("插件关闭"));/
-    }
-
-    public void 重载(){
-        onDisable();
-        instance.getLogger().warning("重新加载");
-        //System.out.println(langConfig.getMessage("重新加载"));
-        onEnable();
+        //System.out.println(langConfig.getMessage("插件关闭"));
+        instance.getLogger().warning(langConfig.getMessage("插件关闭"));
     }
 
 
@@ -146,11 +140,20 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
     //命令
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        //用法不对 不工作
+        if (args.length < 1 || args.length > 2) {
+            sender.sendMessage(ChatColor.AQUA + "§l====用法====");
+            sender.sendMessage("reload：重载插件配置文件");
+            return true;
+        }
         if (args[0].equals("reload") && sender.hasPermission("earthCurvature.重新加载")) {
-            sender.sendMessage(langConfig.getMessage("插件关闭"));
-            重载();
-            sender.sendMessage(langConfig.getMessage("重新加载"));
-            sender.sendMessage(langConfig.getMessage("插件启动"));
+
+            reloadConfig();
+            读取配置项();
+            langConfig.检查语言文件();
+            instance.getLogger().warning("重新加载");
+            sender.sendMessage("[模拟地球环绕]" +langConfig.getMessage("重新加载"));
+
             return true;
         }
         return true;
