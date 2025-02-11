@@ -100,13 +100,14 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
             //System.out.println(langConfig.getMessage("插件启动"));
             getLogger().info(langConfig.getMessage("插件启动"));
             getServer().getPluginManager().registerEvents(this, this);
-            // 实体检测定时任务（每10tick执行一次）
+// 实体检测定时任务（每5tick执行一次）
             new BukkitRunnable() {
                 @Override
                 public void run() {
                     checkAllEntities();
                 }
-            }.runTaskTimer(this, 0L, 10L);
+            }.runTaskTimer(this, 0L, 5L); // 修改此处
+
         } catch (Exception e) {
             // 获取日志记录器
             getLogger().severe("插件启动失败: " + e.getMessage());
@@ -213,25 +214,26 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
             //Vector v = entity.getVelocity().clone();
             // 设置实体的速度为(0, 0, 0)
             entity.setVelocity(new Vector(0, 0, 0));
-            // 创建实体的乘客列表副本
-            List<Entity> passengers = new ArrayList<>(entity.getPassengers()); // 创建副本
-            // 遍历乘客列表，将每个乘客从实体上移除
-            // 移除乘客时遍历副本
-            for (Entity e : passengers) {
-                // 从实体中移除乘客
-                entity.removePassenger(e);
-                e.teleport(loc);
-            }
+
+
 
             // 将实体传送到指定位置
             entity.teleport(loc);
+            // 创建实体的乘客列表副本
+            List<Entity> passengers = new ArrayList<>(entity.getPassengers()); // 创建副本
+            // 移除乘客（避免传送干扰）
+            passengers.forEach(entity::removePassenger);
             // 遍历乘客列表，将每个乘客重新添加到实体上
-            // 重新添加时检查有效性
-            for (Entity e : passengers) {
-                if (恢复骑乘) {
-                    if (e.isValid()) entity.addPassenger(e);
-                }
-            }
+            // 同步乘客到载具的新位置
+            getServer().getScheduler().runTask(this, () -> {
+                // 重新附加乘客
+                passengers.forEach(passenger -> {
+                    if (passenger.isValid() && 恢复骑乘) {
+                        passenger.teleport(loc); // 确保乘客位置同步
+                        entity.addPassenger(passenger);
+                    }
+                });
+            });
             // 设置实体的速度（这个没有起效果）
             /*
             if(reverseVector){
@@ -285,6 +287,9 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
     private static void handleYBoundary(Location loc) {
         // 获取可生成的Y坐标
         Integer 安全落地y = findBlock(loc);
+        if (安全落地y == null) {
+            安全落地y = loc.getWorld().getHighestBlockYAt(loc); // 备用方案
+        }
         // 打印TP Y坐标，调试信息
         // 设置Y坐标
 // 将loc的y坐标设置为“安全落地y”的值加1，如果安全y为null，则设置为loc的y坐标（无更改）
@@ -297,37 +302,29 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
     private static Integer findBlock(Location loc) {
         //这个方法基础是——从上往下遍历方块
         // 获取位置所在的世界
-        World 当前世界 = loc.getWorld();//←变量取名太随便（尤其是只写个字母），以后会看不懂的（doge）不管如何，I Love 汉字~
+        World 当前世界 = loc.getWorld();
 
-        int x = (int) Math.round(loc.getX()-0.5);// 获取位置所在区块的X坐标（带四舍五入）(-0.5修正误差，我也不知道为什么会有个BUG)
-        //int x = (int) (loc.getX()-0.5);// 获取位置所在区块的X坐标（不四舍五入）
-
-        // 获取位置所在区块的Y坐标
+        int x = (int) Math.round(loc.getX()-0.5);
         int y = (int) Math.round(loc.getY());
+        int z = (int) loc.getZ();
 
-        // int z = (int) Math.round(loc.getZ());// 获取位置所在区块的Z坐标（带四舍五入算法的）
-        int z = (int) loc.getZ();// 获取位置所在区块的Z坐标（不四舍五入）
-        //System.out.println("目的地Z坐标:"+z);// 打印Z坐标，调试信息
-        // 从256（兼容旧版本）开始，向下遍历，直到-64（这里不确定要不要改0）
+        // 根据维度设置起始搜索高度
+        int startY = 256; // 默认从256开始
+        if(当前世界.getEnvironment() == World.Environment.NETHER) {
+            startY = 128; // 下界从128开始
+        }
 
-        for (int j = 256; j >= -64; j--) {
-            // 获取当前位置的方块
+        for (int j = startY; j >= -64; j--) {
             Block block = 当前世界.getBlockAt(x, j, z);
-            // 如果方块的材质是固体或者液体（只要不是空气），则返回当前Y坐标（取名为j）
             if (!block.getType().isAir()) {
-                if (调试信息) {         //TMD为了这一段话我又得搞个静态实例，多写几行
-                    // 获取EarthCurvaturePlugin实例
+                if (调试信息) {
                     String message = EarthCurvaturePlugin.getInstance().langConfig.format(
-                            // 格式化debug-teleport消息
                             "控制台输出",
-                            // 将x、j、z替换为对应的值
                             "{x}", x,
                             "{y}", j,
                             "{z}", z
                     );
-                    // 获取EarthCurvaturePlugin实例的Logger
                     EarthCurvaturePlugin.getInstance().getLogger().info(
-                            // 输出消息，去除颜色代码
                             ChatColor.stripColor(message)
                     );
                 }
@@ -335,9 +332,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
             }
         }
 
-        // 如果没有找到固体方块，则直接丢虚空(doge
         return y;
-
     }
     private final List<String> tab = Arrays.asList("reload");
     @Override
