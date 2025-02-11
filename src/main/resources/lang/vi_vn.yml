@@ -5,3 +5,6 @@ messages:
   世界配置生成: "&aĐã tạo cấu hình biên giới mặc định cho thế giới {世界}: x={X-value}，z={Z-value}"
   世界未配置: "&cKhông tìm thấy cấu hình biên giới cho thế giới {世界}, đã bỏ qua."
   控制台输出: "&7[Gỡ lỗi] Thực thể đã dịch chuyển - Tọa độ đích X={x} Y={y} Z={z}"
+  重新加载: "&7[EarthCurvature] Đã tải lại tệp cấu hình"
+  插件启动: "&7[EarthCurvature] Plugin đã khởi động"
+  插件关闭: "&7[EarthCurvature] Plugin đã tắt"

@@ -5,3 +5,6 @@ messages:
   世界配置生成: "&aConfiguración predeterminada generada para el mundo {世界}: x={X-value}，z={Z-value}"
   世界未配置: "&cNo se encontró configuración de límites para el mundo {世界}, omitido."
   控制台输出: "&7[Debug] Entidad teletransportada - Coordenadas X={x} Y={y} Z={z}"
+  重新加载: "&7[EarthCurvature] Recargando archivo de configuración"
+  插件启动: "&7[EarthCurvature] Plugin iniciado"
+  插件关闭: "&7[EarthCurvature] Plugin cerrado"

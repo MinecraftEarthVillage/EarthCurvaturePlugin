@@ -2,3 +2,10 @@ name: EarthCurvaturePlugin
 version: '${project.version}'
 main: top.earthvillage.earthcurvatureplugin.EarthCurvaturePlugin
 api-version: '1.20'
+commands:
+  地球环绕:
+    aliases:
+      - earthCur #别名 也可以调用这个命令
+permissions:
+  earthCurvature.重新加载:
+    default: op

@@ -1,10 +1,12 @@
 package top.earthvillage.earthcurvatureplugin;
 
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
-import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -99,7 +101,7 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
             generateDefaultWorldConfig();
             读取配置项();
 
-
+            System.out.println(langConfig.getMessage("插件启动"));
 
             getServer().getPluginManager().registerEvents(this, this);
             // 实体检测定时任务（每10tick执行一次）
@@ -119,23 +121,40 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         }
     }
 
+    @Override
+    public void onDisable() {
+        //System.out.println(langConfig.getMessage("插件关闭"));/
+    }
+
+    public void 重载(){
+        onDisable();
+        instance.getLogger().warning("重新加载");
+        //System.out.println(langConfig.getMessage("重新加载"));
+        onEnable();
+    }
+
+
+
     // 获取EarthCurvaturePlugin实例
     public static EarthCurvaturePlugin getInstance() {
         // 返回EarthCurvaturePlugin实例
         return instance;
     }
 
-    private static class Configuration {
-        public final double xBoundary;
-        public final double zBoundary;
 
-        public Configuration(FileConfiguration cfg) {
-            xBoundary = cfg.getDouble("boundary.x", 1000);
-            zBoundary = cfg.getDouble("boundary.z", 1000);
+
+    //命令
+    @Override
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (args[0].equals("reload") && sender.hasPermission("earthCurvature.重新加载")) {
+            sender.sendMessage(langConfig.getMessage("插件关闭"));
+            重载();
+            sender.sendMessage(langConfig.getMessage("重新加载"));
+            sender.sendMessage(langConfig.getMessage("插件启动"));
+            return true;
         }
+        return true;
     }
-
-
     // 扫描并处理所有需要检测的实体
     private void checkAllEntities() {
         for (World world : getServer().getWorlds()) {
@@ -171,7 +190,6 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
                 entity.sendMessage(langConfig.getMessage("跨越X坐标边界"));
             }
         }
-
         // Z轴处理
         // 如果loc的Z坐标的绝对值大于config的zBoundary
         // 如果实体的Z坐标绝对值大于配置的Z边界值
@@ -182,6 +200,9 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
             modified = true;
             // 设置反向向量
             reverseVector = true;
+            if (跨越时发送聊天栏消息) {
+                entity.sendMessage(langConfig.getMessage("跨越极点"));
+            }
         }
 
         if (modified) {
@@ -220,9 +241,6 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
             }
             entity.setVelocity(v);
              */
-            if (跨越时发送聊天栏消息) {
-                entity.sendMessage(langConfig.getMessage("跨越极点"));
-            }
         }
     }
 
