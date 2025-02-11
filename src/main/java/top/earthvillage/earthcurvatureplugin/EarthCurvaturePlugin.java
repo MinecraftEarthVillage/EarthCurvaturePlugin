@@ -12,11 +12,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
-import java.util.ArrayList;
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 
 public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
@@ -342,6 +338,14 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         // 如果没有找到固体方块，则直接丢虚空(doge
         return y;
 
+    }
+    private final List<String> tab = Arrays.asList("reload");
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (args.length < 2) {
+            return tab;
+        }
+        return Collections.emptyList();
     }
 
 }
