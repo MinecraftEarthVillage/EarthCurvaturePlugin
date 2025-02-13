@@ -207,33 +207,32 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
 
         if (modified) {
             // 如果实体已经修改过，则返回
-            if (entity.getVehicle() != null) return;
+            //if (entity.getVehicle() != null) return;// 如果entity的车辆属性不为空，则返回
             // 处理Y轴边界
             handleYBoundary(loc);
             // 获取实体的速度
             //Vector v = entity.getVelocity().clone();
             // 设置实体的速度为(0, 0, 0)
             entity.setVelocity(new Vector(0, 0, 0));
-
-
+            // 创建实体的乘客列表副本
+            List<Entity> passengers = new ArrayList<>(entity.getPassengers()); // 创建副本
+            // 遍历乘客列表，将每个乘客从实体上移除
+            // 移除乘客时遍历副本
+            for (Entity e : passengers) {
+                // 从实体中移除乘客
+                entity.removePassenger(e);
+                e.teleport(loc);
+            }
 
             // 将实体传送到指定位置
             entity.teleport(loc);
-            // 创建实体的乘客列表副本
-            List<Entity> passengers = new ArrayList<>(entity.getPassengers()); // 创建副本
-            // 移除乘客（避免传送干扰）
-            passengers.forEach(entity::removePassenger);
             // 遍历乘客列表，将每个乘客重新添加到实体上
-            // 同步乘客到载具的新位置
-            getServer().getScheduler().runTask(this, () -> {
-                // 重新附加乘客
-                passengers.forEach(passenger -> {
-                    if (passenger.isValid() && 恢复骑乘) {
-                        passenger.teleport(loc); // 确保乘客位置同步
-                        entity.addPassenger(passenger);
-                    }
-                });
-            });
+            // 重新添加时检查有效性
+            for (Entity e : passengers) {
+                if (恢复骑乘) {
+                    if (e.isValid()) entity.addPassenger(e);
+                }
+            }
             // 设置实体的速度（这个没有起效果）
             /*
             if(reverseVector){
@@ -311,24 +310,30 @@ public class EarthCurvaturePlugin extends JavaPlugin implements Listener {
         // 根据维度设置起始搜索高度
         int startY = 256; // 默认从256开始
         if(当前世界.getEnvironment() == World.Environment.NETHER) {
-            startY = 128; // 下界从128开始
+            startY = 120; // 下界从120开始
         }
 
         for (int j = startY; j >= -64; j--) {
             Block block = 当前世界.getBlockAt(x, j, z);
+            // 判断方块类型是否为空气，要求不是
             if (!block.getType().isAir()) {
-                if (调试信息) {
-                    String message = EarthCurvaturePlugin.getInstance().langConfig.format(
-                            "控制台输出",
-                            "{x}", x,
-                            "{y}", j,
-                            "{z}", z
-                    );
-                    EarthCurvaturePlugin.getInstance().getLogger().info(
-                            ChatColor.stripColor(message)
-                    );
+                // 检查该方块上方是否有2格空气方块
+                Block aboveBlock1 = 当前世界.getBlockAt(x, j + 1, z);
+                Block aboveBlock2 = 当前世界.getBlockAt(x, j + 2, z);
+                if (aboveBlock1.getType().isAir() && aboveBlock2.getType().isAir()) {
+                    if (调试信息) {
+                        String message = EarthCurvaturePlugin.getInstance().langConfig.format(
+                                "控制台输出",
+                                "{x}", x,
+                                "{y}", j,
+                                "{z}", z
+                        );
+                        EarthCurvaturePlugin.getInstance().getLogger().info(
+                                ChatColor.stripColor(message)
+                        );
+                    }
+                    return j;
                 }
-                return j;
             }
         }
 
